@@ -1,62 +1,139 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { BrandHeader } from "@/components/BrandHeader";
+import { StorageWarning } from "@/components/StorageWarning";
+import { CanvasCollage } from "@/components/CanvasCollage";
 import { tenantConfig } from "@/config/tenant.config";
 
-export default function PreviewPage() {
-  const [copied, setCopied] = useState(false);
+interface PhotoData {
+  url: string;
+  timestamp: string;
+}
 
-  // Data Dummy Laporan
-  const reportData = {
-    storeName: tenantConfig.name,
-    shift: "Shift Pagi",
-    category: "Store Ready Concept",
-    duration: "06:45 - 07:15 WIB (Durasi: 30 menit)",
-    officer: "Budi",
-    date: "19 September 2026",
-  };
+export default function PreviewPage() {
+  const [photos, setPhotos] = useState<PhotoData[]>([]);
+  const [copied, setCopied] = useState(false);
+  const [renderedImageUrl, setRenderedImageUrl] = useState<string>("");
+
+  useEffect(() => {
+    // Ambil foto yang baru dijepret dari IndexedDB HP
+    const request = indexedDB.open("StoreOpsDB", 1);
+    request.onsuccess = () => {
+      const db = request.result;
+      if (db.objectStoreNames.contains("photos")) {
+        const tx = db.transaction("photos", "readonly");
+        const store = tx.objectStore("photos");
+        const getAll = store.getAll();
+
+        getAll.onsuccess = () => {
+          const result = getAll.result || [];
+          const formattedPhotos = result.map((item: any) => {
+            let imgUrl = "";
+            if (item.blob instanceof Blob) {
+              imgUrl = URL.createObjectURL(item.blob);
+            } else if (typeof item.blob === "string") {
+              imgUrl = item.blob;
+            }
+            return {
+              url: imgUrl,
+              timestamp: item.timestamp || new Date().toLocaleString("id-ID"),
+            };
+          });
+          setPhotos(formattedPhotos);
+        };
+      }
+    };
+  }, []);
 
   const generateCaption = () => {
-    return `📌 *LAPORAN OPERASIONAL TOKO*\n` +
-           `🏬 *Toko:* ${reportData.storeName}\n` +
-           `📅 *Tanggal:* ${reportData.date}\n` +
-           `☀️ *Shift:* ${reportData.shift}\n` +
-           `🏷️ *Kategori:* ${reportData.category}\n` +
-           `⏱️ *Rentang Waktu:* ${reportData.duration}\n` +
-           `👤 *Petugas:* ${reportData.officer}\n\n` +
-           `*Gambar collage terlampir.*`;
+    return (
+      `📌 *LAPORAN OPERASIONAL TOKO*\n` +
+      `🏬 *Toko:* ${tenantConfig.name}\n` +
+      `📅 *Tanggal:* ${new Date().toLocaleDateString("id-ID")}\n` +
+      `☀️ *Shift:* Shift Pagi\n` +
+      `🏷️ *Kategori:* Store Ready Concept\n` +
+      `📸 *Jumlah Foto:* ${photos.length} Foto\n\n` +
+      `*Gambar collage terlampir.*`
+    );
   };
 
-  const handleShareToWA = async () => {
+  const handleShareWA = async () => {
     const caption = generateCaption();
-    
-    // Copy caption ke clipboard
     await navigator.clipboard.writeText(caption);
     setCopied(true);
 
-    // Buka WA Native
-    const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(caption)}`;
-    window.open(waUrl, "_blank");
-
+    // Buka WhatsApp
+    window.open(
+      `https://api.whatsapp.com/send?text=${encodeURIComponent(caption)}`,
+      "_blank"
+    );
     setTimeout(() => setCopied(false), 3000);
   };
 
-  return (
-    <div className="min-h-screen bg-slate-100 p-4 flex flex-col items-center justify-center gap-4">
-      <h1 className="text-xl font-bold text-slate-800">Preview Laporan Operasional</h1>
-      
-      {/* Box Petunjuk */}
-      <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg text-sm text-blue-900 w-full max-w-md">
-        💡 Teks caption laporan akan otomatis ter-copy. Tinggal <b>Paste</b> saat WhatsApp terbuka!
-      </div>
+  const handleDownloadCollage = () => {
+    if (!renderedImageUrl) return;
+    const link = document.createElement("a");
+    link.href = renderedImageUrl;
+    link.download = `Collage-${tenantConfig.id}-${Date.now()}.jpg`;
+    link.click();
+  };
 
-      {/* Tombol Share WA */}
-      <button
-        onClick={handleShareToWA}
-        className="w-full max-w-md bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all active:scale-95"
-      >
-        <span>🟢</span> {copied ? "Teks Copied! Membuka WA..." : "Kirim Laporan ke WA"}
-      </button>
-    </div>
+  return (
+    <main className="min-h-screen flex flex-col items-center p-4 bg-slate-100">
+      <BrandHeader />
+      <div className="w-full max-w-md flex flex-col gap-3">
+        <StorageWarning />
+
+        <h2 className="text-center font-bold text-slate-800 text-lg">
+          Preview Laporan Operasional
+        </h2>
+
+        {photos.length === 0 ? (
+          <div className="bg-white p-6 rounded-2xl shadow text-center border">
+            <p className="text-slate-500 text-sm mb-4">
+              Belum ada foto yang dijepret.
+            </p>
+            <a
+              href="/camera"
+              className="inline-block bg-blue-900 text-white px-4 py-2 rounded-xl text-sm font-bold"
+            >
+              📷 Ambil Foto Dulu
+            </a>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3 items-center">
+            {/* Engine Canvas Collage */}
+            <CanvasCollage
+              photos={photos}
+              shift="Shift Pagi"
+              category="Store Ready Concept"
+              onRendered={(dataUrl) => setRenderedImageUrl(dataUrl)}
+            />
+
+            {/* Tombol Simpan Gambar */}
+            {renderedImageUrl && (
+              <button
+                onClick={handleDownloadCollage}
+                className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-2.5 rounded-xl text-sm shadow flex items-center justify-center gap-2 active:scale-95 transition"
+              >
+                💾 Simpan / Download Gambar Collage
+              </button>
+            )}
+
+            <div className="bg-blue-50 border border-blue-200 p-3 rounded-xl text-xs text-blue-900 w-full text-center">
+              💡 Tekan tombol di bawah untuk menyalin teks & buka WhatsApp. Tempel (*paste*) teks dan lampirkan gambar collage dari galeri!
+            </div>
+
+            <button
+              onClick={handleShareWA}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow active:scale-95 transition text-base"
+            >
+              {copied ? "✓ Teks Copied! Membuka WA..." : "🟢 Kirim Laporan ke WA"}
+            </button>
+          </div>
+        )}
+      </div>
+    </main>
   );
 }
