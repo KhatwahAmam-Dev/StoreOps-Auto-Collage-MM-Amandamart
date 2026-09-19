@@ -12,6 +12,7 @@ interface CanvasCollageProps {
   photos: PhotoData[];
   shift: string;
   category: string;
+  durationText?: string;
   onRendered: (dataUrl: string) => void;
 }
 
