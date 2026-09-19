@@ -1,0 +1,16 @@
+{
+  "name": "MM Amandamart StoreOps",
+  "short_name": "Amandamart",
+  "description": "Aplikasi Auto-Collage Laporan Operasional Toko",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1e3a8a",
+  "theme_color": "#1e3a8a",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}
